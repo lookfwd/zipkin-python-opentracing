@@ -14,30 +14,36 @@ from basictracer.context import SpanContext
 
 from zipkin_ot import thrift
 
+from collections import namedtuple
+
+
+class ReportResponse(object):
+
+    def __init__(self):
+        self.status_code = 200
+
+    def raise_for_status(self):
+        pass
+
+
+SpanRecord = namedtuple('SpanRecord', 'url, span_records, headers')
+
+
 class MockConnection(object):
     """MockConnection is used to debug and test Runtime.
     """
     def __init__(self):
         self.reports = []
-        self.ready = False
 
-    def open(self):
-        self.ready = True
-
-    def report(self, _, report):
+    def post(self, url, data, headers):
         """Mimic the Thrift client's report method. Instead of sending report
             requests save them to a list.
         """
-        self.reports.append(report)
-        return thrift.ReportResponse()
-
-    def close(self):
-        pass
+        self.reports.append(SpanRecord(url, data, headers))
+        return ReportResponse()
 
     def clear(self):
-        """Delete the current report requests.
-        """
-        self.reports[:] = []
+        self.reports = []
 
 
 class RecorderTest(unittest.TestCase):
@@ -45,11 +51,11 @@ class RecorderTest(unittest.TestCase):
     """
     def setUp(self):
         self.mock_connection = MockConnection()
-        self.mock_connection.open()
         self.runtime_args = {'collector_host': 'localhost',
                              'collector_port': 9411,
                              'component_name': 'python/runtime_test',
-                             'periodic_flush_seconds': 0}
+                             'periodic_flush_seconds': 0,
+                             'verbosity': 1}
 
     def create_test_recorder(self):
         """Returns a Openzipkin Recorder based on self.runtime_args.
@@ -68,7 +74,7 @@ class RecorderTest(unittest.TestCase):
         self.assertTrue(recorder.flush(self.mock_connection))
 
         # Check 10 spans
-        self.check_spans(self.mock_connection.reports[0].span_records)
+        self.check_spans(self.mock_connection.reports)
 
         # Delete current logs and shutdown runtime
         self.mock_connection.clear()
@@ -93,16 +99,16 @@ class RecorderTest(unittest.TestCase):
         for i in range(1000):
             recorder.record_span(self.dummy_basic_span(recorder, i))
         self.assertTrue(recorder.flush(self.mock_connection))
-        self.assertEqual(len(self.mock_connection.reports[0].span_records), 1000)
-        self.check_spans(self.mock_connection.reports[0].span_records)
+        self.assertEqual(len(self.mock_connection.reports), 1000)
+        self.check_spans(self.mock_connection.reports)
 
     def test_stress_spans(self):
         recorder = self.create_test_recorder()
         for i in range(1000):
             recorder.record_span(self.dummy_basic_span(recorder, i))
         self.assertTrue(recorder.flush(self.mock_connection))
-        self.assertEqual(len(self.mock_connection.reports[0].span_records), 1000)
-        self.check_spans(self.mock_connection.reports[0].span_records)
+        self.assertEqual(len(self.mock_connection.reports), 1000)
+        self.check_spans(self.mock_connection.reports)
 
     # -------------
     # RUNTIME TESTS
@@ -123,15 +129,20 @@ class RecorderTest(unittest.TestCase):
     # ------
     # HELPER
     # ------
-    def check_spans(self, spans):
+    def check_spans(self, reports):
         """Checks spans' name.
         """
-        for i, span in enumerate(spans):
-            self.assertEqual(span.span_name, str(i))
+
+        for i, span in enumerate(reports):
+            spans_without_header = span.span_records
+            raw_span = json.loads(spans_without_header)
+            
+            span_name = raw_span[2]
+            self.assertEqual(span_name, str(i))
 
     def dummy_basic_span(self, recorder, i):
         return BasicSpan(
-            zipkin_ot.tracer._ZipkinTracer(False, recorder),
+            zipkin_ot.tracer._OpenZipkinTracer(False, recorder),
             operation_name=str(i),
             context=SpanContext(
                 trace_id=1000+i,

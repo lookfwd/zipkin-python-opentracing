@@ -29,7 +29,7 @@ def Tracer(**kwargs):
     :param int max_span_records: Maximum number of spans records to buffer
     :param int periodic_flush_seconds: seconds between periodic background
         flushes, or 0 to disable background flushes entirely.
-    :param int verbosity: verbosity for (debug) logging, all via logging.info().
+    :param int verbosity: verbosity for (debug) logging, all via logging.info()
         0 (default): log nothing
         1: log transient problems
         2: log all of the above, along with payloads sent over the wire
@@ -44,7 +44,7 @@ def Tracer(**kwargs):
         configuration). Defaults to False (i.e., binary format is enabled).
     """
     enable_binary_format = True
-    if kwargs.has_key('disable_binary_format'):
+    if 'disable_binary_format' in kwargs:
         enable_binary_format = not kwargs['disable_binary_format']
         del kwargs['disable_binary_format']
     return _OpenZipkinTracer(enable_binary_format, Recorder(**kwargs))

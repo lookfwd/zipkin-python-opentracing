@@ -10,11 +10,13 @@ import struct
 
 guid_rng = random.Random()   # Uses urandom seed
 
+
 def _collector_url_from_hostport(host, port):
     """
     Create an appropriate collector URL given the parameters.
     """
     return ''.join(['http://', host, ':', str(port), '/api/v1/spans'])
+
 
 def _generate_guid():
     """
@@ -22,8 +24,10 @@ def _generate_guid():
     """
     return guid_rng.getrandbits(64) - 1
 
+
 def _id_to_hex(id):
     return '{0:x}'.format(id)
+
 
 def _now_micros():
     """
@@ -31,14 +35,17 @@ def _now_micros():
     """
     return _time_to_micros(time.time())
 
+
 def _time_to_micros(t):
     """
     Convert a time.time()-style timestamp to microseconds.
     """
     return long(round(t * constants.SECONDS_TO_MICRO))
 
+
 def _merge_dicts(*dict_args):
-    """Destructively merges dictionaries, returns None instead of an empty dictionary.
+    """Destructively merges dictionaries, returns None
+    instead of an empty dictionary.
 
     Elements of dict_args can be None.
     Keys in latter dicts override those in earlier ones.
@@ -48,6 +55,7 @@ def _merge_dicts(*dict_args):
         if dictionary:
             result.update(dictionary)
     return result if result else None
+
 
 def _coerce_str(str_or_unicode):
     if isinstance(str_or_unicode, str):
