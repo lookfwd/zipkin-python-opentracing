@@ -6,29 +6,19 @@ https://github.com/opentracing/basictracer-python
 See the API definition for comments.
 """
 
-from socket import error as socket_error
-
 import atexit
-import contextlib
-import jsonpickle
-import logging
-import pprint
 import ssl
 import sys
 import threading
 import time
 import traceback
 import warnings
-import json
 import requests
-
-from collections import namedtuple
 
 from basictracer.recorder import SpanRecorder
 
 from zipkin_ot.thrift import annotation_list_builder
 from zipkin_ot.thrift import binary_annotation_list_builder
-from zipkin_ot.thrift import copy_endpoint_with_new_service_name
 from zipkin_ot.thrift import create_span
 from zipkin_ot.thrift import to_thrift_spans
 from zipkin_ot.thrift import thrift_obj_in_bytes
@@ -38,8 +28,8 @@ from . import constants, version as tracer_version, util
 
 
 STANDARD_ANNOTATIONS = {
-    'client': {'cs', 'cr'},
-    'server': {'ss', 'sr'},
+    'client': {'cs':[], 'cr':[]},
+    'server': {'ss':[], 'sr':[]},
 }
 STANDARD_ANNOTATIONS_KEYS = frozenset(STANDARD_ANNOTATIONS.keys())
 
@@ -53,7 +43,7 @@ class Recorder(SpanRecorder):
     component_name, collector_host, collector_port,
     tags, max_span_records, periodic_flush_seconds, verbosity,
     and certificate_verification.
-    
+
     :param port: The port number of the service. Defaults to 0.
 
     """
@@ -79,8 +69,7 @@ class Recorder(SpanRecorder):
             component_name = sys.argv[0]
 
         # Thrift runtime configuration
-        self.guid = util._generate_guid()
-        timestamp = util._now_micros()
+        self.guid = util.generate_guid()
 
         python_version = '.'.join(map(str, sys.version_info[0:3]))
         if tags is None:
@@ -92,7 +81,7 @@ class Recorder(SpanRecorder):
             'zipkin_ot.tracer_platform_version': python_version,
             'zipkin_ot.tracer_version': tracer_version_s,
             'zipkin_ot.component_name': component_name,
-            'zipkin_ot.guid': util._id_to_hex(self.guid),
+            'zipkin_ot.guid': util.id_to_hex(self.guid),
             })
 
         self.endpoint = create_endpoint(port, component_name)
@@ -108,18 +97,7 @@ class Recorder(SpanRecorder):
             for include_name in include:
                 self.annotation_filter.update(STANDARD_ANNOTATIONS[include_name])
 
-        # Convert tracer_tags to a list of KeyValue pairs.
-        # runtime_attrs = [thrift.KeyValue(k, util._coerce_str(v))
-        #                  for (k, v) in tracer_tags.iteritems()]
-
-        # Thrift is picky about the types being correct, so we're explicit here
-        # self._runtime = thrift.Runtime(
-        #         util._id_to_hex(self.guid),
-        #         long(timestamp),
-        #         util._coerce_str(component_name),
-        #         runtime_attrs)
-        # self._finest("Initialized with Tracer runtime: %s", (self._runtime,))
-        self._collector_url = util._collector_url_from_hostport(
+        self._collector_url = util.collector_url_from_hostport(
             collector_host,
             collector_port)
         self._mutex = threading.Lock()
@@ -151,7 +129,7 @@ class Recorder(SpanRecorder):
         background flush thread starts before `fork()` calls happen.
         """
         if ((self._periodic_flush_seconds > 0) and
-           (self._flush_thread is None)):
+                (self._flush_thread is None)):
             self._flush_thread = threading.Thread(
                 target=self._flush_periodically,
                 name=constants.FLUSH_THREAD_NAME)
@@ -189,12 +167,12 @@ class Recorder(SpanRecorder):
 
         annotations = {}
         binary_annotations = {}
-        
+
         if span.tags:
             for key in span.tags:
                 # You might want to handle key[:len(constants.JOIN_ID_TAG_PREFIX)] ==
                 # constants.JOIN_ID_TAG_PREFIX) differently.
-                binary_annotations[key] = util._coerce_str(span.tags[key])
+                binary_annotations[key] = util.coerce_str(span.tags[key])
 
         for log in span.logs:
             event = log.key_values.get('event') or ''
@@ -204,7 +182,7 @@ class Recorder(SpanRecorder):
                     event = event[:constants.MAX_LOG_LEN]
             payload = log.key_values.get('payload')
             binary_annotations["%s@%s" % (event, str(log.timestamp))] = payload
-        
+
         # To get a full span we just set cs=sr and ss=cr.
         full_annotations = {
             'cs': span.start_time,
@@ -215,10 +193,11 @@ class Recorder(SpanRecorder):
             full_annotations['cr'] = full_annotations['ss']
 
         # But we filter down if we only want to emit some of the annotations
-        filtered_annotations = {
-            k: v for k, v in full_annotations.items()
-            if k in self.annotation_filter
-        }
+        filtered_annotations = {}
+        for k, v in full_annotations.items():
+            if k in self.annotation_filter:
+                filtered_annotations[k] = v
+
         annotations.update(filtered_annotations)
 
         thrift_annotations = annotation_list_builder(
@@ -229,10 +208,10 @@ class Recorder(SpanRecorder):
         )
 
         span_record = create_span(
-            util._id_to_hex(span.context.span_id),
-            util._id_to_hex(span.parent_id),
-            util._id_to_hex(span.context.trace_id),
-            util._coerce_str(span.operation_name),
+            util.id_to_hex(span.context.span_id),
+            util.id_to_hex(span.parent_id),
+            util.id_to_hex(span.context.trace_id),
+            util.coerce_str(span.operation_name),
             thrift_annotations,
             thrift_binary_annotations,
         )
@@ -267,7 +246,7 @@ class Recorder(SpanRecorder):
         called.
 
         Returns whether the data was successfully flushed.
-        """        
+        """
         # Closing connection twice results in an error. Exit early
         # if runtime has already been disabled.
         if self._disabled_runtime:
@@ -295,7 +274,7 @@ class Recorder(SpanRecorder):
         """Use the given connection to transmit the current logs and spans as a
         report request."""
 
-        # Nothing todo anyway (also makes tests pass by ignoring on last 
+        # Nothing todo anyway (also makes tests pass by ignoring on last
         # flush())
         if not self._span_records:
             return True

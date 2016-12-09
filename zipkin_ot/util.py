@@ -11,21 +11,21 @@ import struct
 guid_rng = random.Random()   # Uses urandom seed
 
 
-def _collector_url_from_hostport(host, port):
+def collector_url_from_hostport(host, port):
     """
     Create an appropriate collector URL given the parameters.
     """
     return ''.join(['http://', host, ':', str(port), '/api/v1/spans'])
 
 
-def _generate_guid():
+def generate_guid():
     """
     Construct a guid - a random 64 bit integer
     """
     return guid_rng.getrandbits(64) - 1
 
 
-def _id_to_hex(id):
+def id_to_hex(id):
     if id is None:
         return None
     return '{0:x}'.format(id)
@@ -59,7 +59,7 @@ def _merge_dicts(*dict_args):
     return result if result else None
 
 
-def _coerce_str(str_or_unicode):
+def coerce_str(str_or_unicode):
     if isinstance(str_or_unicode, str):
         return str_or_unicode
     elif isinstance(str_or_unicode, unicode):
