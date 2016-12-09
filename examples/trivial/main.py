@@ -59,7 +59,7 @@ def zipkin_ot_tracer_from_args():
     parser.add_argument('--host', help='The OpenZipkin reporting service host to contact.',
                         default='localhost')
     parser.add_argument('--port', help='The OpenZipkin reporting service port.',
-                        type=int, default=8080)
+                        type=int, default=9411)
     parser.add_argument('--component_name', help='The OpenZipkin component name',
                         default='TrivialExample')
     args = parser.parse_args()

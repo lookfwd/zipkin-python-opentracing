@@ -52,7 +52,5 @@ example: build
 test: build
 	tox
 
-thrift:
+#thrift:
 	#thrift -r -gen py -out zipkin_ot/ zipkin_ot/thrift/zipkinCore.thrift
-	#thrift -r -gen py -out lightstep/ $(LIGHTSTEP_HOME)/go/src/crouton/crouton.thrift
-	#rm lightstep/crouton/ReportingService-remote

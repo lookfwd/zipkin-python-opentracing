@@ -10,7 +10,8 @@ The OpenZipkin distributed tracing library for Python.
 
 ```bash
 apt-get install python-dev
-pip install zipkin-python-opentracing
+python setup.py install
+#pip install zipkin-python-opentracing
 ```
 
 ## Getting started
@@ -18,7 +19,16 @@ pip install zipkin-python-opentracing
 Please see the [example programs](examples/) for examples of how to use this library. In particular:
 
 * [Trivial Example](examples/trivial/main.py) shows how to use the library on a single host.
+
+![trivial example](/docs/img/trivial-example.gif)
+
+* [Non-trivial example](examples/nontrivial/main.py) is way more resource intensive multi-threaded example (takes ~5'):.
+
+![non-trivial traces](/docs/img/non-trivial-example.gif)
+
 * [Context in Headers](examples/http/context_in_headers.py) shows how to pass a `TraceContext` through `HTTP` headers.
+
+![context in headers](/docs/img/context-in-headers.gif)
 
 Or if your python code is already instrumented for OpenTracing, you can simply switch to OpenZipkin's implementation with:
 

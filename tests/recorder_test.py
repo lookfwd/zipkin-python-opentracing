@@ -12,6 +12,8 @@ import zipkin_ot.recorder
 from basictracer.span import BasicSpan
 from basictracer.context import SpanContext
 
+from zipkin_ot.thrift import spans_from_bytes
+
 from zipkin_ot import thrift
 
 from collections import namedtuple
@@ -26,7 +28,7 @@ class ReportResponse(object):
         pass
 
 
-SpanRecord = namedtuple('SpanRecord', 'url, span_records, headers')
+SpanRecord = namedtuple('SpanRecord', 'url, data, headers')
 
 
 class MockConnection(object):
@@ -99,7 +101,7 @@ class RecorderTest(unittest.TestCase):
         for i in range(1000):
             recorder.record_span(self.dummy_basic_span(recorder, i))
         self.assertTrue(recorder.flush(self.mock_connection))
-        self.assertEqual(len(self.mock_connection.reports), 1000)
+        self.assertEqual(len(RecorderTest.decode_span_array(self.mock_connection.reports[0].data)), 1000)
         self.check_spans(self.mock_connection.reports)
 
     def test_stress_spans(self):
@@ -107,7 +109,7 @@ class RecorderTest(unittest.TestCase):
         for i in range(1000):
             recorder.record_span(self.dummy_basic_span(recorder, i))
         self.assertTrue(recorder.flush(self.mock_connection))
-        self.assertEqual(len(self.mock_connection.reports), 1000)
+        self.assertEqual(len(RecorderTest.decode_span_array(self.mock_connection.reports[0].data)), 1000)
         self.check_spans(self.mock_connection.reports)
 
     # -------------
@@ -126,19 +128,27 @@ class RecorderTest(unittest.TestCase):
         self.assertEqual(len(recorder._span_records), 88)
         self.assertTrue(recorder.flush(self.mock_connection))
 
+    @staticmethod
+    def decode_span_array(data):
+        to_object = '\x0f\x00\x01' + data + '\x00'
+        
+        return spans_from_bytes(to_object).spans
+
     # ------
     # HELPER
     # ------
     def check_spans(self, reports):
         """Checks spans' name.
         """
+        id = 0
 
-        for i, span in enumerate(reports):
-            spans_without_header = span.span_records
-            raw_span = json.loads(spans_without_header)
+        for i, report in enumerate(reports):
+            spans = RecorderTest.decode_span_array(report.data)
+
+            for i in xrange(len(spans)):
+                self.assertEqual(spans[i].name, str(id))
             
-            span_name = raw_span[2]
-            self.assertEqual(span_name, str(i))
+                id += 1
 
     def dummy_basic_span(self, recorder, i):
         return BasicSpan(

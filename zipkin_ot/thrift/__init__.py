@@ -146,6 +146,8 @@ def create_span(
         span_dict["parent_id"] = unsigned_hex_to_signed_int(parent_span_id)
     return zipkin_core.Span(**span_dict)
 
+def to_thrift_spans(spans):
+    return zipkin_core.Spans(spans)
 
 def thrift_obj_in_bytes(thrift_obj):  # pragma: no cover
     """
@@ -157,3 +159,9 @@ def thrift_obj_in_bytes(thrift_obj):  # pragma: no cover
     trans = TMemoryBuffer()
     thrift_obj.write(TBinaryProtocol(trans))
     return bytes(trans.getvalue())
+
+def spans_from_bytes(buf):
+    trans = TMemoryBuffer(buf)
+    thrift_object = zipkin_core.Spans()
+    thrift_object.read(TBinaryProtocol(trans))
+    return thrift_object

@@ -359,4 +359,6 @@ struct Span {
   11: optional i64 duration
 }
 
-
+struct Spans {
+  1: list<Span> spans
+}

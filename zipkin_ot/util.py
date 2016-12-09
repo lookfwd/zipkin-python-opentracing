@@ -26,6 +26,8 @@ def _generate_guid():
 
 
 def _id_to_hex(id):
+    if id is None:
+        return None
     return '{0:x}'.format(id)
 
 

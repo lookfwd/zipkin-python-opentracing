@@ -30,9 +30,18 @@ from zipkin_ot.thrift import annotation_list_builder
 from zipkin_ot.thrift import binary_annotation_list_builder
 from zipkin_ot.thrift import copy_endpoint_with_new_service_name
 from zipkin_ot.thrift import create_span
+from zipkin_ot.thrift import to_thrift_spans
 from zipkin_ot.thrift import thrift_obj_in_bytes
+from zipkin_ot.thrift import create_endpoint
 
 from . import constants, version as tracer_version, util
+
+
+STANDARD_ANNOTATIONS = {
+    'client': {'cs', 'cr'},
+    'server': {'ss', 'sr'},
+}
+STANDARD_ANNOTATIONS_KEYS = frozenset(STANDARD_ANNOTATIONS.keys())
 
 
 class Recorder(SpanRecorder):
@@ -44,15 +53,20 @@ class Recorder(SpanRecorder):
     component_name, collector_host, collector_port,
     tags, max_span_records, periodic_flush_seconds, verbosity,
     and certificate_verification.
+    
+    :param port: The port number of the service. Defaults to 0.
+
     """
     def __init__(self,
                  component_name=None,
                  collector_host='localhost',
-                 collector_port=8080,
+                 collector_port=9411,
                  tags=None,
                  max_span_records=constants.DEFAULT_MAX_SPAN_RECORDS,
                  periodic_flush_seconds=constants.FLUSH_PERIOD_SECS,
                  verbosity=0,
+                 include=('client', 'server'),
+                 port=0,
                  certificate_verification=True):
         self.verbosity = verbosity
 
@@ -80,6 +94,20 @@ class Recorder(SpanRecorder):
             'zipkin_ot.component_name': component_name,
             'zipkin_ot.guid': util._id_to_hex(self.guid),
             })
+
+        self.endpoint = create_endpoint(port, component_name)
+
+        if not set(include).issubset(STANDARD_ANNOTATIONS_KEYS):
+            raise Exception(
+                'Only %s are supported as annotations' %
+                STANDARD_ANNOTATIONS_KEYS
+            )
+        else:
+            # get a list of all of the mapped annotations
+            self.annotation_filter = set()
+            for include_name in include:
+                self.annotation_filter.update(STANDARD_ANNOTATIONS[include_name])
+
         # Convert tracer_tags to a list of KeyValue pairs.
         # runtime_attrs = [thrift.KeyValue(k, util._coerce_str(v))
         #                  for (k, v) in tracer_tags.iteritems()]
@@ -159,39 +187,14 @@ class Recorder(SpanRecorder):
             if len(self._span_records) >= self._max_span_records:
                 return
 
-        SpanRecord = namedtuple('SpanRecord', 'trace_guid, span_guid, span_name, log_records')
-        span_record = SpanRecord(
-            trace_guid=util._id_to_hex(span.context.trace_id),
-            span_guid=util._id_to_hex(span.context.span_id),
-            span_name=util._coerce_str(span.operation_name),
-            log_records=[])
-        # span_record = thrift.SpanRecord(
-        #     trace_guid=util._id_to_hex(span.context.trace_id),
-        #     span_guid=util._id_to_hex(span.context.span_id),
-        #     runtime_guid=util._id_to_hex(self.guid),
-        #     span_name=util._coerce_str(span.operation_name),
-        #     join_ids=[],
-        #     oldest_micros=long(util._time_to_micros(span.start_time)),
-        #     youngest_micros=long(util._time_to_micros(span.start_time +
-        #     span.duration)),
-        #     attributes=[],
-        #     log_records=[]
-        # )
-
-        # if span.parent_id != None:
-        #     span_record.attributes.append(
-        #         thrift.KeyValue(
-        #             constants.PARENT_SPAN_GUID,
-        #             util._id_to_hex(span.parent_id)))
-        # if span.tags:
-        #     for key in span.tags:
-        #         if (key[:len(constants.JOIN_ID_TAG_PREFIX)] ==
-        #             constants.JOIN_ID_TAG_PREFIX):
-        #             span_record.join_ids.append(
-        #  thrift.TraceJoinId(key, util._coerce_str(span.tags[key])))
-        #         else:
-        #             span_record.attributes.append(
-        #  thrift.KeyValue(key, util._coerce_str(span.tags[key])))
+        annotations = {}
+        binary_annotations = {}
+        
+        if span.tags:
+            for key in span.tags:
+                # You might want to handle key[:len(constants.JOIN_ID_TAG_PREFIX)] ==
+                # constants.JOIN_ID_TAG_PREFIX) differently.
+                binary_annotations[key] = util._coerce_str(span.tags[key])
 
         for log in span.logs:
             event = log.key_values.get('event') or ''
@@ -200,10 +203,39 @@ class Recorder(SpanRecorder):
                 if sys.getsizeof(event) > constants.MAX_LOG_MEMORY:
                     event = event[:constants.MAX_LOG_LEN]
             payload = log.key_values.get('payload')
-            # span_record.log_records.append(thrift.LogRecord(
-            #     timestamp_micros=long(util._time_to_micros(log.timestamp)),
-            #     stable_name=event,
-            #     payload_json=payload))
+            binary_annotations["%s@%s" % (event, str(log.timestamp))] = payload
+        
+        # To get a full span we just set cs=sr and ss=cr.
+        full_annotations = {
+            'cs': span.start_time,
+            'sr': span.start_time
+        }
+        if span.duration != -1:
+            full_annotations['ss'] = span.start_time + span.duration
+            full_annotations['cr'] = full_annotations['ss']
+
+        # But we filter down if we only want to emit some of the annotations
+        filtered_annotations = {
+            k: v for k, v in full_annotations.items()
+            if k in self.annotation_filter
+        }
+        annotations.update(filtered_annotations)
+
+        thrift_annotations = annotation_list_builder(
+            annotations, self.endpoint
+        )
+        thrift_binary_annotations = binary_annotation_list_builder(
+            binary_annotations, self.endpoint
+        )
+
+        span_record = create_span(
+            util._id_to_hex(span.context.span_id),
+            util._id_to_hex(span.parent_id),
+            util._id_to_hex(span.context.trace_id),
+            util._coerce_str(span.operation_name),
+            thrift_annotations,
+            thrift_binary_annotations,
+        )
 
         with self._mutex:
             if len(self._span_records) < self._max_span_records:
@@ -235,7 +267,7 @@ class Recorder(SpanRecorder):
         called.
 
         Returns whether the data was successfully flushed.
-        """
+        """        
         # Closing connection twice results in an error. Exit early
         # if runtime has already been disabled.
         if self._disabled_runtime:
@@ -268,67 +300,44 @@ class Recorder(SpanRecorder):
         if not self._span_records:
             return True
 
-        report_request = self._construct_report_request()
+        span_records = None
+        with self._mutex:
+            span_records = self._span_records
+            self._span_records = []
+
         try:
-            self._finest("Attempting to send report to collector: %s", (
-                report_request,))
+            self._finest("Attempting to send records to collector: %s", (
+                span_records,))
 
-            for i, raw_span in enumerate(report_request.span_records):
-                self._finest("encoded span: %d", (i,))
+            self._finest("encoded span: %s", (span_records,))
 
-                # Report to the server.
-                # The collector expects a thrift-encoded list of spans. Instead
-                # of decoding and re-encoding the already thrift-encoded
-                # message, we can just add header bytes that specify that what
-                # follows is a list of length 1.
-                #'\x0c\x00\x00\x00\x01
-                body = json.dumps(raw_span)
-                args = {
-                    "url": self._collector_url,
-                    "data": body,
-                    "headers": {'Content-Type': 'application/x-thrift'}
-                }
-                if connection:
-                    r = connection.post(**args)
-                else:
-                    r = requests.post(**args)
+            # Report to the server.
+            # The collector expects a thrift-encoded list of spans. We
+            # encode a full struct
+            body = thrift_obj_in_bytes(to_thrift_spans(span_records))[3:-1]
+            args = {
+                "url": self._collector_url,
+                "data": body,
+                "headers": {'Content-Type': 'application/x-thrift'}
+            }
+            if connection:
+                r = connection.post(**args)
+            else:
+                r = requests.post(**args)
 
-                r.raise_for_status()
+            r.raise_for_status()
 
-                self._finest("Received response from collector: %s",
-                             (r.status_code,))
+            self._finest("Received response from collector: %s",
+                         (r.status_code,))
 
             # Return whether we sent any span data
-            return len(report_request.span_records) > 0
+            return len(span_records) > 0
 
         except Exception as e:
             self._fine("Caught exception during report: %s, stack "
                        "trace: %s", (e, traceback.format_exc(e)))
-            self._restore_spans(report_request.span_records)
+            self._restore_spans(span_records)
             return False
-
-    def _construct_report_request(self):
-        """Construct a report request."""
-        report = None
-        with self._mutex:
-            ReportRequest = namedtuple('ReportRequest', 'span_records')
-            report = ReportRequest(self._span_records)
-            self._span_records = []
-        for span in report.span_records:
-            for log in span.log_records:
-                index = span.log_records.index(log)
-                if log.payload_json is not None:
-                    try:
-                        log.payload_json = jsonpickle.encode(
-                            log.payload_json,
-                            unpicklable=False,
-                            make_refs=False,
-                            max_depth=constants.JSON_MAX_DEPTH)
-                    except:
-                        log.payload_json = jsonpickle.encode(
-                            constants.JSON_FAIL)
-                span.log_records[index] = log
-        return report
 
     def _restore_spans(self, span_records):
         """Called after a flush error to move records back into the buffer
