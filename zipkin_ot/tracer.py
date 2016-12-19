@@ -9,7 +9,7 @@ See the API definition for comments.
 from __future__ import absolute_import
 
 from basictracer import BasicTracer
-from basictracer.text_propagator import TextPropagator
+from .zipkin_propagator import ZipkinPropagator, NoopPropagator
 from opentracing import Format
 
 from .recorder import Recorder
@@ -18,14 +18,12 @@ from .recorder import Recorder
 def Tracer(**kwargs):
     """Instantiates OpenZipkin's OpenTracing implementation.
 
-    :param str component_name: the human-readable identity of the instrumented
+    :param str service_name: the human-readable identity of the instrumented
         process. I.e., if one drew a block diagram of the distributed system,
-        the component_name would be the name inside the box that includes this
+        the service_name would be the name inside the box that includes this
         process.
     :param str collector_host: OpenZipkin collector hostname
     :param int collector_port: OpenZipkin collector port
-    :param dict tags: a string->string dict of tags for the Tracer itself (as
-        opposed to the Spans it records)
     :param int max_span_records: Maximum number of spans records to buffer
     :param int periodic_flush_seconds: seconds between periodic background
         flushes, or 0 to disable background flushes entirely.
@@ -38,29 +36,17 @@ def Tracer(**kwargs):
         library) for the lifetime of this process; intended for debugging
         purposes only. (Included to work around SNI non-conformance issues
         present in some versions of python)
-    :param bool disable_binary_format: Whether to disable the binary
-        inject/extract format (which relies on protobufs and may cause problems
-        if other versions of protobufs are active in the same packaging
-        configuration). Defaults to False (i.e., binary format is enabled).
     """
-    enable_binary_format = True
-    if 'disable_binary_format' in kwargs:
-        enable_binary_format = not kwargs['disable_binary_format']
-        del kwargs['disable_binary_format']
-    return _OpenZipkinTracer(enable_binary_format, Recorder(**kwargs))
+    return _OpenZipkinTracer(Recorder(**kwargs))
 
 
 class _OpenZipkinTracer(BasicTracer):
-    def __init__(self, enable_binary_format, recorder):
+    def __init__(self, recorder):
         """Initialize the OpenZipkin Tracer, deferring to BasicTracer."""
         super(_OpenZipkinTracer, self).__init__(recorder)
-        self.register_propagator(Format.TEXT_MAP, TextPropagator())
-        self.register_propagator(Format.HTTP_HEADERS, TextPropagator())
-        if enable_binary_format:
-            # We do this import lazily because protobuf versioning issues
-            # can cause process-level failure at import time.
-            from basictracer.binary_propagator import BinaryPropagator
-            self.register_propagator(Format.BINARY, BinaryPropagator())
+        self.register_propagator(Format.TEXT_MAP, ZipkinPropagator())
+        self.register_propagator(Format.HTTP_HEADERS, ZipkinPropagator())
+        self.register_propagator(Format.BINARY, NoopPropagator())
 
     def flush(self):
         """Force a flush of buffered Span data to the OpenZipkin collector."""

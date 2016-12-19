@@ -1,0 +1,1 @@
+To debug, run `npm start <my port> <python port>` to start just the node server. Run `python main.py` to run the full test.

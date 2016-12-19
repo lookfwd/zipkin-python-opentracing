@@ -67,12 +67,12 @@ def zipkin_ot_tracer_from_args():
                         default='localhost')
     parser.add_argument('--port', help='The OpenZipkin reporting service port.',
                         type=int, default=9411)
-    parser.add_argument('--component_name', help='The OpenZipkin component name',
+    parser.add_argument('--service_name', help='The OpenZipkin component name',
                         default='TrivialExample')
     args = parser.parse_args()
 
     return zipkin_ot.Tracer(
-            component_name=args.component_name,
+            service_name=args.service_name,
             collector_host=args.host,
             collector_port=args.port,
             verbosity=1)

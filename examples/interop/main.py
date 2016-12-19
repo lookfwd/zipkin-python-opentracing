@@ -19,6 +19,9 @@ import opentracing.ext.tags
 import zipkin_ot
 from zipkin_ot.constants import HTTP_URL, HTTP_PATH
 
+import subprocess
+
+
 class RemoteHandler(BaseHTTPRequestHandler):
     """This handler receives the request from the client.
     """
@@ -34,11 +37,11 @@ class RemoteHandler(BaseHTTPRequestHandler):
             self.wfile.write("Hello World!")
 
 
-def before_sending_request(request):
+def before_sending_request(request, parent_span):
     """Context manager creates Span and encodes the span's SpanContext into request.
     """
-    span = opentracing.tracer.start_span('Sending request')
-    span.set_tag(HTTP_URL, request.get_full_url())
+    span = opentracing.start_child_span(parent_span, 'trivial/node_request')
+    span.log_event('include', ['client'])
 
     host = request.get_host()
     if host:
@@ -82,16 +85,21 @@ def before_answering_request(handler, tracer):
 
     return span
 
-
-def pick_unused_port():
+def pick_unused_ports(count=2):
     """ Since we don't reserve the port, there's a chance it'll get grabed, but that's unlikely.
     """
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind(('localhost', 0))
-    port = s.getsockname()[1]
-    s.close()
-    return port
+    ports, hanlders = [], []
 
+    for i in xrange(count):
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind(('localhost', 0))
+        hanlders.append(s)
+        ports.append(s.getsockname()[1])
+    
+    for i in hanlders:
+        i.close()
+
+    return ports
 
 def zipkin_ot_tracer_from_args():
     """Initializes OpenZipkin from the commandline args.
@@ -102,7 +110,7 @@ def zipkin_ot_tracer_from_args():
     parser.add_argument('--port', help='The OpenZipkin reporting service port.',
                         type=int, default=9411)
     parser.add_argument('--service_name', help='The OpenZipkin component name',
-                        default='TrivialExample')
+                        default='InteropExample')
     args = parser.parse_args()
 
     return zipkin_ot.Tracer(
@@ -118,34 +126,62 @@ if __name__ == '__main__':
         global _exit_code
         _exit_code = 0
 
-        # Create a web server and define the handler to manage the incoming request
-        port_number = pick_unused_port()
-        server = HTTPServer(('', port_number), RemoteHandler)
+        with opentracing.tracer.start_span('Important Request') as parent_span:
+            
+            parent_span.log_event('starting node server')
 
-        try:
-            # Run the server in a separate thread.
-            server_thread = threading.Thread(target=server.serve_forever)
-            server_thread.start()
-            print 'Started httpserver on port ', port_number
+            # Create a web server and define the handler to manage the incoming request
+            js_port_number, python_port_number = pick_unused_ports()
 
-            # Prepare request in the client
-            url = 'http://localhost:{}'.format(port_number)
-            request = urllib2.Request(url)
-            with before_sending_request(request) as client_span:
-                client_span.log_event('sending request', url)
+            server = HTTPServer(('', python_port_number), RemoteHandler)
 
-                # Send request to server
-                response = urllib2.urlopen(request)
+            command = "cd examples/interop/; npm start %d %d" % (js_port_number,
+                                                                 python_port_number)
+            process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
+        
+            for line in iter(process.stdout.readline, ''):
+                if line.strip() == "Started":
+                    break
 
-                response_body = response.read()
-                client_span.log_event('server returned', {
-                    "code": response.code,
-                    "body": response_body,
-                })
+            parent_span.log_event('node server started')
+            print 'Started node server on port ', js_port_number
 
-            print 'Server returned ' + str(response.code) + ': ' + response_body
+            try:
+                # Run the server in a separate thread.
+                server_thread = threading.Thread(target=server.serve_forever)
+                server_thread.start()
+                print 'Started httpserver on port ', python_port_number
+                
+                parent_span.log_event('http server started')
 
-            sys.exit(_exit_code)
+                # Prepare request in the client
+                url = 'http://localhost:{}'.format(js_port_number)
+            
+                request = urllib2.Request(url)
+                with before_sending_request(request, parent_span) as client_span:
+                    client_span.log_event('sending request', url)
 
-        finally:
-            server.shutdown()
+                    # Send request to server
+                    response = urllib2.urlopen(request)
+
+                    response_body = response.read()
+                    client_span.log_event('server returned', {
+                        "code": response.code,
+                        "body": response_body,
+                    })
+
+                print 'Server returned ' + str(response.code) + ': ' + response_body
+            
+                url = 'http://localhost:{}/shutdown'.format(js_port_number)
+                request = urllib2.Request(url)
+                urllib2.urlopen(request)
+
+                process.wait()
+                
+                for line in iter(process.stdout.readline, ''):
+                    print line.strip()
+
+                sys.exit(_exit_code)
+
+            finally:
+                server.shutdown()

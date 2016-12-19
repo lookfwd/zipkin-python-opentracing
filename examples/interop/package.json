@@ -1,0 +1,27 @@
+{
+  "name": "interop",
+  "version": "1.0.0",
+  "description": "A simple opentracing API server/proxy",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "keywords": [
+    "opentracing",
+    "zipkin",
+    "client",
+    "server",
+    "http",
+    "test"
+  ],
+  "author": "Dimitrios Kouzis-Loukas",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "express": "4.14.0",
+    "node-fetch": "1.6.3",
+    "zipkin": "0.5.0",
+    "zipkin-instrumentation-express": "0.5.0",
+    "zipkin-instrumentation-fetch": "0.5.0",
+    "zipkin-transport-http": "0.5.0"
+  }
+}

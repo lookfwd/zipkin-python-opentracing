@@ -4,7 +4,7 @@
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-The OpenZipkin distributed tracing library for Python.
+The OpenZipkin OpenTracing (Open)Library for (Open)Python :D
 
 ## Installation
 
@@ -30,6 +30,10 @@ Please see the [example programs](examples/) for examples of how to use this lib
 
 ![context in headers](/docs/img/context-in-headers.gif)
 
+* [Interoperability](examples/interop/main.py) extends on the `HTTP` headers example by starting a node express server that receives a request, proxies it back to Python and then forwards the response.
+
+![context in headers](/docs/img/interop-example.gif)
+
 Or if your python code is already instrumented for OpenTracing, you can simply switch to OpenZipkin's implementation with:
 
 ```python
@@ -38,7 +42,7 @@ import zipkin_ot
 
 if __name__ == "__main__":
   opentracing.tracer = zipkin_ot.Tracer(
-    component_name='your_microservice_name')
+    service_name='your_microservice_name')
 
   with opentracing.tracer.start_span('TestSpan') as span:
     span.log_event('test message', payload={'life': 42})

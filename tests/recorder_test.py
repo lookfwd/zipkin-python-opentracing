@@ -55,7 +55,7 @@ class RecorderTest(unittest.TestCase):
         self.mock_connection = MockConnection()
         self.runtime_args = {'collector_host': 'localhost',
                              'collector_port': 9411,
-                             'component_name': 'python/runtime_test',
+                             'service_name': 'python/runtime_test',
                              'periodic_flush_seconds': 0,
                              'verbosity': 1}
 
@@ -152,7 +152,7 @@ class RecorderTest(unittest.TestCase):
 
     def dummy_basic_span(self, recorder, i):
         return BasicSpan(
-            zipkin_ot.tracer._OpenZipkinTracer(False, recorder),
+            zipkin_ot.tracer._OpenZipkinTracer(recorder),
             operation_name=str(i),
             context=SpanContext(
                 trace_id=1000+i,

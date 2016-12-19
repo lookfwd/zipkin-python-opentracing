@@ -24,7 +24,7 @@ from zipkin_ot.thrift import to_thrift_spans
 from zipkin_ot.thrift import thrift_obj_in_bytes
 from zipkin_ot.thrift import create_endpoint
 
-from . import constants, version as tracer_version, util
+from . import constants, util
 
 
 STANDARD_ANNOTATIONS = {
@@ -40,18 +40,17 @@ class Recorder(SpanRecorder):
     These reports are sent to a OpenTracing collector at the provided address.
 
     For parameter semantics, see Tracer() documentation; Recorder() respects
-    component_name, collector_host, collector_port,
-    tags, max_span_records, periodic_flush_seconds, verbosity,
+    service_name, collector_host, collector_port,
+    max_span_records, periodic_flush_seconds, verbosity,
     and certificate_verification.
 
     :param port: The port number of the service. Defaults to 0.
 
     """
     def __init__(self,
-                 component_name=None,
+                 service_name=None,
                  collector_host='localhost',
                  collector_port=9411,
-                 tags=None,
                  max_span_records=constants.DEFAULT_MAX_SPAN_RECORDS,
                  periodic_flush_seconds=constants.FLUSH_PERIOD_SECS,
                  verbosity=0,
@@ -65,26 +64,10 @@ class Recorder(SpanRecorder):
                           'ALL FUTURE HTTPS calls will be unverified.')
             ssl._create_default_https_context = ssl._create_unverified_context
 
-        if component_name is None:
-            component_name = sys.argv[0]
+        if service_name is None:
+            service_name = sys.argv[0]
 
-        # Thrift runtime configuration
-        self.guid = util.generate_guid()
-
-        python_version = '.'.join(map(str, sys.version_info[0:3]))
-        if tags is None:
-            tags = {}
-        tracer_version_s = tracer_version.OPENZIPKIN_OT_PYTHON_TRACER_VERSION
-        tracer_tags = tags.copy()
-        tracer_tags.update({
-            'zipkin_ot.tracer_platform': 'python',
-            'zipkin_ot.tracer_platform_version': python_version,
-            'zipkin_ot.tracer_version': tracer_version_s,
-            'zipkin_ot.component_name': component_name,
-            'zipkin_ot.guid': util.id_to_hex(self.guid),
-            })
-
-        self.endpoint = create_endpoint(port, component_name)
+        self.endpoint = create_endpoint(port, service_name)
 
         if not set(include).issubset(STANDARD_ANNOTATIONS_KEYS):
             raise Exception(
@@ -167,6 +150,7 @@ class Recorder(SpanRecorder):
 
         annotations = {}
         binary_annotations = {}
+        annotation_filter = self.annotation_filter
 
         if span.tags:
             for key in span.tags:
@@ -181,7 +165,12 @@ class Recorder(SpanRecorder):
                 if sys.getsizeof(event) > constants.MAX_LOG_MEMORY:
                     event = event[:constants.MAX_LOG_LEN]
             payload = log.key_values.get('payload')
-            binary_annotations["%s@%s" % (event, str(log.timestamp))] = payload
+            if event == 'include':
+                annotation_filter = set()
+                for include_name in payload:
+                    annotation_filter.update(STANDARD_ANNOTATIONS[include_name])
+            else:
+                binary_annotations["%s@%s" % (event, str(log.timestamp))] = payload
 
         # To get a full span we just set cs=sr and ss=cr.
         full_annotations = {
@@ -195,7 +184,7 @@ class Recorder(SpanRecorder):
         # But we filter down if we only want to emit some of the annotations
         filtered_annotations = {}
         for k, v in full_annotations.items():
-            if k in self.annotation_filter:
+            if k in annotation_filter:
                 filtered_annotations[k] = v
 
         annotations.update(filtered_annotations)
