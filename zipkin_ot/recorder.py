@@ -195,6 +195,8 @@ class Recorder(SpanRecorder):
         )
 
         span_record = create_span(
+            span.start_time,
+            span.duration,
             util.id_to_hex(span.context.span_id),
             util.id_to_hex(span.parent_id),
             util.id_to_hex(span.context.trace_id),

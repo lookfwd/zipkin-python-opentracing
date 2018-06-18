@@ -125,6 +125,8 @@ def binary_annotation_list_builder(binary_annotations, host):
 
 
 def create_span(
+    start_time,
+    duration,
     span_id,
     parent_span_id,
     trace_id,
@@ -136,6 +138,8 @@ def create_span(
     of the span.
     """
     span_dict = {
+        "timestamp": seconds_to_microseconds(start_time),
+        "duration": seconds_to_microseconds(duration),
         "trace_id": unsigned_hex_to_signed_int(trace_id),
         "name": span_name,
         "id": unsigned_hex_to_signed_int(span_id),
@@ -165,3 +169,6 @@ def spans_from_bytes(buf):
     thrift_object = zipkin_core.Spans()
     thrift_object.read(TBinaryProtocol(trans))
     return thrift_object
+
+def seconds_to_microseconds(ts):
+    return int(1e6 * ts)
