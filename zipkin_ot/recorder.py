@@ -31,7 +31,7 @@ STANDARD_ANNOTATIONS = {
     'client': {'cs':[], 'cr':[]},
     'server': {'ss':[], 'sr':[]},
 }
-STANDARD_ANNOTATIONS_KEYS = frozenset(STANDARD_ANNOTATIONS.keys())
+STANDARD_ANNOTATIONS_KEYS = frozenset(list(STANDARD_ANNOTATIONS.keys()))
 
 
 class Recorder(SpanRecorder):
@@ -121,11 +121,11 @@ class Recorder(SpanRecorder):
 
     def _fine(self, fmt, args):
         if self.verbosity >= 1:
-            print "[Zipkin_OpenTracing Tracer]:", (fmt % args)
+            print(("[Zipkin_OpenTracing Tracer]:", (fmt % args)))
 
     def _finest(self, fmt, args):
         if self.verbosity >= 2:
-            print "[Zipkin_OpenTracing Tracer]:", (fmt % args)
+            print(("[Zipkin_OpenTracing Tracer]:", (fmt % args)))
 
     def record_span(self, span):
         """Per BasicSpan.record_span, safely add a span to the buffer.
@@ -183,7 +183,7 @@ class Recorder(SpanRecorder):
 
         # But we filter down if we only want to emit some of the annotations
         filtered_annotations = {}
-        for k, v in full_annotations.items():
+        for k, v in list(full_annotations.items()):
             if k in annotation_filter:
                 filtered_annotations[k] = v
 

@@ -130,8 +130,8 @@ class RecorderTest(unittest.TestCase):
 
     @staticmethod
     def decode_span_array(data):
-        to_object = '\x0f\x00\x01' + data + '\x00'
-        
+        to_object = b'\x0f\x00\x01' + data + b'\x00'
+
         return spans_from_bytes(to_object).spans
 
     # ------
@@ -142,12 +142,12 @@ class RecorderTest(unittest.TestCase):
         """
         id = 0
 
-        for i, report in enumerate(reports):
+        for report in reports:
             spans = RecorderTest.decode_span_array(report.data)
 
-            for i in xrange(len(spans)):
-                self.assertEqual(spans[i].name, str(id))
-            
+            for span in spans:
+                self.assertEqual(span.name, str(id))
+
                 id += 1
 
     def dummy_basic_span(self, recorder, i):

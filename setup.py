@@ -7,7 +7,7 @@ setup(
     long_description='',
     author='OpenZipkin',
     license='',
-    install_requires=['thrift==0.9.2',
+    install_requires=['thrift',
                       'jsonpickle',
                       'pytest',
                       'thriftpy',

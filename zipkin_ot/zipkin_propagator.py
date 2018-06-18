@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+
 
 from opentracing import SpanContextCorruptedException
 from basictracer.context import SpanContext

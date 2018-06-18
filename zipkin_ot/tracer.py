@@ -6,7 +6,7 @@ https://github.com/opentracing/api-python
 
 See the API definition for comments.
 """
-from __future__ import absolute_import
+
 
 from basictracer import BasicTracer
 from .zipkin_propagator import ZipkinPropagator, NoopPropagator

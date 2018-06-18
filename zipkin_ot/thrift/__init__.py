@@ -101,7 +101,7 @@ def annotation_list_builder(annotations, host):
     """
     return [
         create_annotation(int(timestamp * 1000000), key, host)
-        for key, timestamp in annotations.items()
+        for key, timestamp in list(annotations.items())
     ]
 
 
@@ -120,7 +120,7 @@ def binary_annotation_list_builder(binary_annotations, host):
     ann_type = zipkin_core.AnnotationType.STRING
     return [
         create_binary_annotation(key, str(value), ann_type, host)
-        for key, value in binary_annotations.items()
+        for key, value in list(binary_annotations.items())
     ]
 
 

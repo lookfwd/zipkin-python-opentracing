@@ -1,11 +1,8 @@
 """ Utility functions
 """
 import random
-import time
-import constants
-import codecs
-import os
 import struct
+import six
 
 
 guid_rng = random.Random()   # Uses urandom seed
@@ -25,16 +22,16 @@ def id_to_hex(id):
 
 
 def coerce_str(str_or_unicode):
-    if isinstance(str_or_unicode, str):
+    if isinstance(str_or_unicode, bytes):
         return str_or_unicode
-    elif isinstance(str_or_unicode, unicode):
+    elif isinstance(str_or_unicode, six.string_types):
         return str_or_unicode.encode('utf-8', 'replace')
-    else:
-        try:
-            return str(str_or_unicode)
-        except Exception:
-            # Never let these errors bubble up
-            return '(encoding error)'
+
+    try:
+        return str(str_or_unicode)
+    except Exception:
+        # Never let these errors bubble up
+        return '(encoding error)'
 
 
 def unsigned_hex_to_signed_int(hex_string):

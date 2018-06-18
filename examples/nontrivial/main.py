@@ -79,7 +79,7 @@ def zipkin_ot_tracer_from_args():
 
 
 if __name__ == '__main__':
-    print 'Hello ',
+    print('Hello, ')
 
     # Use OpenZipkin's opentracing implementation
     with zipkin_ot_tracer_from_args() as tracer:
@@ -93,6 +93,6 @@ if __name__ == '__main__':
                 t.start()
             for t in threads:
                 t.join()
-            print '\n'
+            print('\n')
 
-    print ' World!'
+    print(' World!')
