@@ -169,8 +169,6 @@ class Recorder(SpanRecorder):
                 annotation_filter = set()
                 for include_name in payload:
                     annotation_filter.update(STANDARD_ANNOTATIONS[include_name])
-            else:
-                binary_annotations["%s@%s" % (event, str(log.timestamp))] = payload
 
         # To get a full span we just set cs=sr and ss=cr.
         full_annotations = {
