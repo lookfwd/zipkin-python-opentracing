@@ -1,8 +1,10 @@
 # openzipkin-tracer-python
 
+[![OSS Lifecycle](https://img.shields.io/osslifecycle/honeycombio/zipkin-python-opentracing?color=pink)](https://github.com/honeycombio/home/blob/main/honeycomb-oss-lifecycle-and-practices.md)
 [![CircleCI](https://circleci.com/gh/lookfwd/zipkin-python-opentracing.svg?style=svg)](https://circleci.com/gh/lookfwd/zipkin-python-opentracing)
-
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
+**STATUS: this project is being sunset.** See https://github.com/honeycombio/zipkin-python-opentracing/issues/1 
 
 The OpenZipkin OpenTracing (Open)Library for (Open)Python :D
 
